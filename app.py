@@ -596,28 +596,80 @@ def tab_prediksi(df, model_data):
 # ════════════════════════════════════════════════════════════════
 
 def tab_peta(df):
+    import pydeck as pdk
+
     st.markdown('<p class="section-title">Peta Distribusi Listings</p>', unsafe_allow_html=True)
+
     color_by = st.selectbox("Warna berdasarkan:",
-        ['cluster_label','price','review_scores_rating','room_type'])
+        ['cluster_label', 'price', 'room_type'])
 
-    smp = df[df['price']<600].sample(min(4000, len(df)), random_state=SEED)
-    fig = px.scatter_mapbox(
-        smp, lat='latitude', lon='longitude',
-        color=color_by,
-        size='price', size_max=12,
-        color_discrete_sequence=PALETTE,
-        hover_name='name',
-        hover_data={'price':True,'room_type':True,'cluster_label':True,
-                    'amenity_count':True,'review_scores_rating':True,
-                    'neighbourhood_cleansed':True},
-        mapbox_style='open-street-map', zoom=10, height=620,
-        title=f'Distribusi Listings – warna: {color_by}',
+    smp = df[df['price'] < 600].sample(min(4000, len(df)), random_state=SEED).copy()
+
+    # Buat kolom warna RGB
+    if color_by == 'price':
+        max_p = smp['price'].max()
+        smp['color'] = smp['price'].apply(
+            lambda p: [int(255 * p/max_p), int(50 * (1-p/max_p)), 50, 180])
+
+    elif color_by == 'cluster_label':
+        cluster_color_map = {
+            '🟢 Ekonomis' : [46, 204, 113, 180],
+            '🔵 Standar'  : [52, 152, 219, 180],
+            '🟠 Nyaman'   : [230, 126, 34, 180],
+            '🔴 Premium'  : [231, 76, 60, 180],
+            '⭐ Mewah'    : [155, 89, 182, 180],
+        }
+        smp['color'] = smp['cluster_label'].apply(
+            lambda x: cluster_color_map.get(x, [100, 100, 100, 180]))
+
+    elif color_by == 'room_type':
+        rt_colors = {
+            'Entire home/apt': [52, 152, 219, 180],
+            'Private room'   : [46, 204, 113, 180],
+            'Hotel room'     : [231, 76, 60, 180],
+            'Shared room'    : [230, 126, 34, 180],
+        }
+        smp['color'] = smp['room_type'].apply(
+            lambda x: rt_colors.get(x, [120, 120, 120, 180]))
+
+    layer = pdk.Layer(
+        'ScatterplotLayer',
+        data=smp,
+        get_position='[longitude, latitude]',
+        get_color='color',
+        get_radius=80,
+        pickable=True,
     )
-    fig.update_layout(margin=dict(r=0, t=40, l=0, b=0))
-    st.plotly_chart(fig, use_container_width=True)
 
-    st.caption(f"Menampilkan {len(smp):,} dari {len(df):,} listings")
+    view = pdk.ViewState(
+        latitude=30.2672,
+        longitude=-97.7431,
+        zoom=10,
+        pitch=0,
+    )
 
+    tooltip = {
+        "html": "<b>{name}</b><br/>Harga: ${price}<br/>Tipe: {room_type}<br/>Cluster: {cluster_label}<br/>Rating: {review_scores_rating}<br/>Area: {neighbourhood_cleansed}",
+        "style": {"backgroundColor": "steelblue", "color": "white", "fontSize": "12px"}
+    }
+
+    st.pydeck_chart(pdk.Deck(
+        layers=[layer],
+        initial_view_state=view,
+        tooltip=tooltip,
+        map_style='mapbox://styles/mapbox/light-v10',
+    ))
+
+    # Legenda manual
+    if color_by == 'cluster_label':
+        st.markdown("**Legenda Cluster:**")
+        cols = st.columns(5)
+        legend = [('🟢','Ekonomis','#2ecc71'),('🔵','Standar','#3498db'),
+                  ('🟠','Nyaman','#e67e22'),('🔴','Premium','#e74c3c'),('⭐','Mewah','#9b59b6')]
+        for col, (icon, label, color) in zip(cols, legend[:df['cluster_label'].nunique()]):
+            col.markdown(f"<span style='color:{color}'>⬤</span> {icon} {label}", unsafe_allow_html=True)
+
+    st.caption(f"Menampilkan {len(smp):,} dari {len(df):,} listings · Hover titik untuk detail")
 
 # ════════════════════════════════════════════════════════════════
 # TAB 5 – DATA EXPLORER
