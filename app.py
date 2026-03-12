@@ -84,7 +84,7 @@ def parse_amenities(x):
 @st.cache_data(show_spinner="🔄 Memuat & memproses data...")
 def load_data():
     # File Excel dibaca langsung dari repo (Streamlit Cloud clone seluruh repo)
-    df = pd.read_excel("petra_-_-_-_listings_austins.xlsx")
+    df = pd.read_excel("petra - - - listings_austins.xlsx")
 
     # Tanggal
     for c in ['host_since','first_review','last_review','last_scraped']:
