@@ -63,7 +63,7 @@ print("✅ Semua library berhasil diimport!")
 
 # ── CARA C: Dari GitHub (DIREKOMENDASIKAN) ────────────────────
 import io, requests
-GITHUB_RAW = "https://raw.githubusercontent.com/USERNAME/REPO/main/petra_-_-_-_listings_austins.xlsx"
+GITHUB_RAW = "https://raw.githubusercontent.com/raaiiinnnna/Airbnb_test/main/petra - - - listings_austins.xlsx"
 # ⚠️ Ganti USERNAME dan REPO dengan nama akun & repo GitHub Anda
 resp = requests.get(GITHUB_RAW)
 df_raw = pd.read_excel(io.BytesIO(resp.content))
