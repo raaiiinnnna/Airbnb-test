@@ -18,6 +18,9 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, s
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 
+import folium
+from streamlit_folium import st_folium
+
 warnings.filterwarnings("ignore")
 SEED = 42
 
@@ -596,80 +599,90 @@ def tab_prediksi(df, model_data):
 # ════════════════════════════════════════════════════════════════
 
 def tab_peta(df):
-    import pydeck as pdk
-
     st.markdown('<p class="section-title">Peta Distribusi Listings</p>', unsafe_allow_html=True)
 
     color_by = st.selectbox("Warna berdasarkan:",
         ['cluster_label', 'price', 'room_type'])
 
-    smp = df[df['price'] < 600].sample(min(4000, len(df)), random_state=SEED).copy()
+    smp = df[df['price'] < 600].sample(min(1500, len(df)), random_state=SEED).copy()
 
-    # Buat kolom warna RGB
-    if color_by == 'price':
-        max_p = smp['price'].max()
-        smp['color'] = smp['price'].apply(
-            lambda p: [int(255 * p/max_p), int(50 * (1-p/max_p)), 50, 180])
+    # Peta dasar Folium — Austin, Texas
+    m = folium.Map(location=[30.2672, -97.7431], zoom_start=11,
+                   tiles='CartoDB positron')
 
-    elif color_by == 'cluster_label':
-        cluster_color_map = {
-            '🟢 Ekonomis' : [46, 204, 113, 180],
-            '🔵 Standar'  : [52, 152, 219, 180],
-            '🟠 Nyaman'   : [230, 126, 34, 180],
-            '🔴 Premium'  : [231, 76, 60, 180],
-            '⭐ Mewah'    : [155, 89, 182, 180],
-        }
-        smp['color'] = smp['cluster_label'].apply(
-            lambda x: cluster_color_map.get(x, [100, 100, 100, 180]))
-
-    elif color_by == 'room_type':
-        rt_colors = {
-            'Entire home/apt': [52, 152, 219, 180],
-            'Private room'   : [46, 204, 113, 180],
-            'Hotel room'     : [231, 76, 60, 180],
-            'Shared room'    : [230, 126, 34, 180],
-        }
-        smp['color'] = smp['room_type'].apply(
-            lambda x: rt_colors.get(x, [120, 120, 120, 180]))
-
-    layer = pdk.Layer(
-        'ScatterplotLayer',
-        data=smp,
-        get_position='[longitude, latitude]',
-        get_color='color',
-        get_radius=80,
-        pickable=True,
-    )
-
-    view = pdk.ViewState(
-        latitude=30.2672,
-        longitude=-97.7431,
-        zoom=10,
-        pitch=0,
-    )
-
-    tooltip = {
-        "html": "<b>{name}</b><br/>Harga: ${price}<br/>Tipe: {room_type}<br/>Cluster: {cluster_label}<br/>Rating: {review_scores_rating}<br/>Area: {neighbourhood_cleansed}",
-        "style": {"backgroundColor": "steelblue", "color": "white", "fontSize": "12px"}
+    # Skema warna
+    cluster_colors = {
+        '🟢 Ekonomis': '#2ecc71',
+        '🔵 Standar' : '#3498db',
+        '🟠 Nyaman'  : '#e67e22',
+        '🔴 Premium' : '#e74c3c',
+        '⭐ Mewah'   : '#9b59b6',
+    }
+    room_colors = {
+        'Entire home/apt': '#3498db',
+        'Private room'   : '#2ecc71',
+        'Hotel room'     : '#e74c3c',
+        'Shared room'    : '#e67e22',
     }
 
-    st.pydeck_chart(pdk.Deck(
-        layers=[layer],
-        initial_view_state=view,
-        tooltip=tooltip,
-        map_style='mapbox://styles/mapbox/light-v10',
-    ))
+    def price_to_color(price):
+        if price < 75:   return '#2ecc71'
+        elif price < 150: return '#3498db'
+        elif price < 300: return '#e67e22'
+        else:             return '#e74c3c'
 
-    # Legenda manual
+    for _, row in smp.iterrows():
+        if color_by == 'cluster_label':
+            color = cluster_colors.get(row['cluster_label'], '#95a5a6')
+        elif color_by == 'price':
+            color = price_to_color(row['price'])
+        else:
+            color = room_colors.get(row['room_type'], '#95a5a6')
+
+        popup_text = (
+            f"<b>{row['name'][:40]}</b><br>"
+            f"💰 ${row['price']:.0f}/malam<br>"
+            f"🏠 {row['room_type']}<br>"
+            f"🔵 {row['cluster_label']}<br>"
+            f"⭐ {row['review_scores_rating'] if pd.notna(row['review_scores_rating']) else 'N/A'}<br>"
+            f"📍 {row['neighbourhood_cleansed']}"
+        )
+
+        folium.CircleMarker(
+            location=[row['latitude'], row['longitude']],
+            radius=5,
+            color=color,
+            fill=True,
+            fill_color=color,
+            fill_opacity=0.7,
+            popup=folium.Popup(popup_text, max_width=220),
+            tooltip=f"${row['price']:.0f} – {row['cluster_label']}"
+        ).add_to(m)
+
+    st_folium(m, width=1100, height=550)
+
+    # Legenda
+    st.markdown("**Legenda:**")
     if color_by == 'cluster_label':
-        st.markdown("**Legenda Cluster:**")
-        cols = st.columns(5)
-        legend = [('🟢','Ekonomis','#2ecc71'),('🔵','Standar','#3498db'),
-                  ('🟠','Nyaman','#e67e22'),('🔴','Premium','#e74c3c'),('⭐','Mewah','#9b59b6')]
-        for col, (icon, label, color) in zip(cols, legend[:df['cluster_label'].nunique()]):
-            col.markdown(f"<span style='color:{color}'>⬤</span> {icon} {label}", unsafe_allow_html=True)
+        items = list(cluster_colors.items())
+    elif color_by == 'price':
+        items = [('Budget (<$75)','#2ecc71'),('Mid ($75-150)','#3498db'),
+                 ('Premium ($150-300)','#e67e22'),('Luxury (>$300)','#e74c3c')]
+    else:
+        items = list(room_colors.items())
 
-    st.caption(f"Menampilkan {len(smp):,} dari {len(df):,} listings · Hover titik untuk detail")
+    cols = st.columns(len(items))
+    for col, (label, color) in zip(cols, items):
+        col.markdown(f"<span style='color:{color}; font-size:18px'>⬤</span> {label}",
+                     unsafe_allow_html=True)
+
+    st.caption(f"Menampilkan {len(smp):,} dari {len(df):,} listings · Klik titik untuk detail")
+```
+
+**Tambahkan `streamlit-folium` ke `requirements.txt`:**
+```
+streamlit-folium>=0.18.0
+folium>=0.16.0
 
 # ════════════════════════════════════════════════════════════════
 # TAB 5 – DATA EXPLORER
