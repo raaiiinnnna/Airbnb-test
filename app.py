@@ -679,11 +679,6 @@ def tab_peta(df):
     st.caption(f"Menampilkan {len(smp):,} dari {len(df):,} listings · Klik titik untuk detail")
 
 
-**Tambahkan `streamlit-folium` ke `requirements.txt`:**
-
-streamlit-folium>=0.18.0
-folium>=0.16.0
-
 # ════════════════════════════════════════════════════════════════
 # TAB 5 – DATA EXPLORER
 # ════════════════════════════════════════════════════════════════
